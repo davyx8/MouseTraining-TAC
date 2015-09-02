@@ -22,7 +22,7 @@ function varargout = levelEntry(varargin)
 
 % Edit the above text to modify the response to help levelEntry
 
-% Last Modified by GUIDE v2.5 04-Mar-2015 21:35:31
+% Last Modified by GUIDE v2.5 18-Aug-2015 21:59:20
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -307,6 +307,7 @@ handles.output.valveSequencePath=sprintf('%s/%s-Valve-Random-Sequence.csv',mouse
 handles.output.waterGivePeriod=str2num(get(handles.waterGivingPeriod, 'String'));
 handles.output.valveOpeningTime=str2num(get(handles.valveOpening, 'String'));
 handles.output.interTrialInterval = str2num(get(handles.InterTrialInterval, 'String'));
+handles.output.timeOut= str2num(get(handles.TimeOut, 'String'));
 handles.output.delay=str2num(get(handles.delay, 'String'));
 handles.ohandles.outpututput.timeWindow = str2num(get(handles.timeWindow, 'String'));
 handles.output.timeWindow = str2num(get(handles.sampleWindowTxt, 'String'));
@@ -717,6 +718,29 @@ function valveOpening_Callback(hObject, eventdata, handles)
 % --- Executes during object creation, after setting all properties.
 function valveOpening_CreateFcn(hObject, eventdata, handles)
 % hObject    handle to valveOpening (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+
+function TimeOut_Callback(hObject, eventdata, handles)
+% hObject    handle to TimeOut (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of TimeOut as text
+%        str2double(get(hObject,'String')) returns contents of TimeOut as a double
+
+
+% --- Executes during object creation, after setting all properties.
+function TimeOut_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to TimeOut (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    empty - handles not created until after all CreateFcns called
 

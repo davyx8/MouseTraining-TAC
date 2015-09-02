@@ -22,7 +22,7 @@ classdef Level
         %how long ot waut between each trial
         interTrialInterval=5;
         numberofTrials=20;
-        
+        timeOut=2;
         odorPeriod=1;
         %for training only
         NumberOfLicksPerTimeWindow=4;

@@ -16,11 +16,11 @@ x.addDigitalChannel('Dev1','port0/line1' , 'OutputOnly');
 currLevel=Level2AC
 %path=sprintf('mouse1_%d_%d_%d_%d_%d_%d.csv',fix(clock()));
 path=sprintf('mouse1.csv');
-% % % % comment: level 1
-% % % %% lickthreshold is zero
-% % % % mouse gets water immideatly
+% % % comment: level 1
+% % %% lickthreshold is zero
+% % % mouse gets water immideatly
 currLevel.levelNumber=1;
-currLevel.successesNeeded=3;
+currLevel.successesNeeded=1;
 currLevel.interTrialInterval=0;
 pass=false;
 currLevel.timeWindow=inf;
@@ -36,9 +36,9 @@ end
 % % % % level 2
 % % % % lickthreshold is 2
 % % % % mouse gets water after than
-currLevel.successesNeeded=10;
+currLevel.successesNeeded=1;
 pass=false;
-currLevel.lickThresh=2;
+currLevel.lickThresh=1;
 currLevel.interTrialInterval=0;
 currLevel.levelNumber=2;
 while(~pass)
@@ -49,13 +49,13 @@ while(~pass)
     dlmwrite(path,data,'-append');
 end
 
-% % % %%level 3
-% % % %%lickthreshold is 3
+% % %%level 3
+% % %%lickthreshold is 3
 
 currLevel.timeWindow = 2000;
 currLevel.successesNeeded=3;
 pass=false;
-currLevel.lickThresh=3;
+currLevel.lickThresh=1;
 currLevel.levelNumber=3;
 while(~pass)
     display( 'Mouse is still on level three');
@@ -67,9 +67,9 @@ end
 % % % 
 % % % % level 4
 % % % % lickthreshold is 4
-currLevel.successesNeeded=3;
+currLevel.successesNeeded=5;
 pass=false;
-currLevel.lickThresh=2;
+currLevel.lickThresh=1;
 currLevel.interTrialInterval=2;
 currLevel.levelNumber=4;
 currLevel.timeWindow = 2000;

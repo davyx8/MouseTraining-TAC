@@ -1,4 +1,6 @@
 function varargout = StartExperiment(varargin)
+
+% look for zehBest function
 % STARTEXPERIMENT MATLAB code for StartExperiment.fig
 %      STARTEXPERIMENT, by itself, creates a new STARTEXPERIMENT or raises the existing
 %      singleton*.
@@ -22,7 +24,7 @@ function varargout = StartExperiment(varargin)
 
 % Edit the above text to modify the response to help StartExperiment
 
-% Last Modified by GUIDE v2.5 18-Aug-2015 21:09:54
+% Last Modified by GUIDE v2.5 16-Mar-2015 07:09:28
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -119,7 +121,7 @@ closeTraining=false;
 % set(handles.Result, 'String', var(mod(i,4)+1));
 % pause(0.01)
 % end
-closeOlfactometer
+%closeOlfactometer
 %close all
 %clear all
 
@@ -177,12 +179,24 @@ function Untitled_1_Callback(hObject, eventdata, handles)
 
 
 function ZehBest(handles,hObject)
+
 global closeTraining
 global mouseObj
 global str
 global x
 closeTraining=true;
-display('dudeeee')
+global hitA
+global hitB
+global FAA
+global FAB
+global miss
+global failedTrials
+hitA=0;
+hitB=0;
+FAA=0;
+FAB=0;
+miss=0;
+failedTrials=0;
 lev=mouseObj
 finalValveLickDelay=0.25;
 if (isempty(lev.randomValves))
@@ -195,6 +209,8 @@ else
     randomValves=lev.randomValves;
     valveCount=lev.currentValve;
 end
+
+%%ni session init.
 x=daq.createSession('ni');
 x.IsContinuous = true;
 %Beam
@@ -207,46 +223,45 @@ x.addDigitalChannel('Dev1','port0/line6' , 'InputOnly');
 x.addDigitalChannel('Dev1','port0/line0' , 'OutputOnly');
 % valve 2
 x.addDigitalChannel('Dev1','port0/line1' , 'OutputOnly');
-% x.addDigitalChannel('Dev1','port0/line1' , 'InputOnly');
-% valveopen=false;
-lickTimer=0;
-valveTimer=0;
+
+
+%%timers and time constants, lick and valve most important ones
+lickTimer=0; %timer for lick ocunting (time-window)
+valveTimer=0; %timer for closing the final valve
 valveOpeningTime=lev.valveOpeningTime;
 loggingThresh=lev.timeWindow;
-wateropen = false;
-%x=dev;
 
-headIn=false;
-%stuff to count
-
-
-insideInterTrial=false;
-attempts=0;
-firsLick=true;
-firstBeam=true;
+%%logging , data results holds the info about the valve #
 dataResults=[valveCount;valveCount;valveCount;valveCount];
 if(valveCount==0)
     dataResults=ones(4,1);
 end
+
+%juist overhead, dont delete
 vopen=1;
 vclose=0;
 slave=1;
 
-notWrriten=true;
-wasntLogged=true;
-%diffrence=diff([a' ones(length(a),1)*max(a)]')
 
 delay=lev.delay;
 lickCounter=0;
-disconnA=true;
+
+%%booleans
+disconnA=true; %disconnect booleans, for proper lick counting
 disconnB=true;
-trialInit=true;
-valveopen=false;
-breaking=false;
-waterWasGiven=false;
-samplingTimer=tic;
-falseTrial=false;
-%olf init
+trialInit=true; %boolean to indicate trial initialization
+valveopen=false; %boolean to indicate whether final valve is open
+waterWasGiven=false; %boolean to indicate whether water was given for logging
+samplingTimer=tic; %boolean to track logging timing , explaine later
+falseTrial=false; %on 2AC false trials exist, ask lena for criteria , ex
+wateropen = false; %self explanatory
+insideInterTrial=false;
+firsLick=true; %indicates whther this is the first lick of the trial
+notWrriten=true; %logging boolean , so not to duplicate
+firstBeam=true; %indicates whether this is the first beam breaking in the trial
+headIn=false; %boolean to indicate the mouse head is currently breaking the beam
+
+%olfactometer initialization
 traileID=sprintf('pelegLOG_%d_%d_%d_%d_%d_%d.csv',fix(clock()));
 logger = Logger(traileID,...
     @(h2) invoke(h2, 'SetDigOut', 1 ,1 ,0),...
@@ -257,27 +272,36 @@ olfactometerSetFinalValve(h2, slave, logger, vopen);
 olfactometerSetOder(h2, slave, logger, 2, vclose);
 olfactometerSetFinalValve(h2, slave, logger, vclose);
 valveLock=0;
+
 while (true & closeTraining)
+    % ok this is the main loop data aquisition, its amateur but easy to code
+    %a bit clumsy too, but it works.
+    % closeTraining is the
+    
     if(insideInterTrial)
+        %if we are in the intertrial interval we dont even start
         continue
     end
     
-    % loop is broken only when successCount>=lev.successesNeeded
     if(valveCount>lev.numberofTrials)
-        closeEvs(h2);
-        %LogResultsWhenPausing(lev,valveCount,valveNumber,lickCounter,waterWasGiven,handles);
+        closeEvs(h2); %closes the gui and olf.
         obj=lev;
         save(str,'obj');
-        return
+        return % :) end of experiment
     end
-    %scanning to get data from electronic box
     
+    %THIS IS THE AQUISITION, BEGIN DEBUGGING HERE, make sure there are no
+    %hardware issues before blaming the code
     data=x.inputSingleScan();
     
+    %used for logging
     dataVec=[];
     
     if(valveTimer~=0)
-       
+        %% this is used for logging
+        %% we store up data untill we reach loggingthresh
+        %% then we writ to the file
+        %% we sample every 10 milisec. as can be seen
         if(toc(valveTimer)<loggingThresh)
             notWrriten=true;
             if(toc(samplingTimer)>=0.01)
@@ -291,11 +315,11 @@ while (true & closeTraining)
             end
         else
             if(notWrriten)
-             %   if(intersect(valveNumber,lev.rewardValve)==valveNumber)
-                    dlmwrite(lev.lickFirstPath,dataResults(1,:),'-append');
-                    dlmwrite(lev.beamPath,dataResults(3,:),'-append');
-                    dlmwrite(lev.lickSecondPath,dataResults(4,:),'-append');
-              %  end
+                %   if(intersect(valveNumber,lev.rewardValve)==valveNumber)
+                dlmwrite(lev.lickFirstPath,dataResults(1,:),'-append');
+                dlmwrite(lev.beamPath,dataResults(3,:),'-append');
+                dlmwrite(lev.lickSecondPath,dataResults(4,:),'-append');
+                %  end
                 dlmwrite(lev.timePath,dataResults(2,:),'-append');
                 LogResultsWhenPausing(lev,valveCount,valveNumber,lickCounter,waterWasGiven,handles,falseTrial);
                 valveLock=0;
@@ -303,7 +327,8 @@ while (true & closeTraining)
                 dataResults=[valveCount+1;valveCount+1; valveCount+1;valveCount+1];
                 notWrriten=false;
             else
-                %  guidata()
+                % there has to be a way to remove this and optimize the
+                % code.
                 pause(0.001);
             end
         end
@@ -317,8 +342,7 @@ while (true & closeTraining)
         if( valveTimer==0 || toc(valveTimer)>lev.interTrialInterval)
             % we get here when beam (data(1)) is broken AND it wasnt already
             % broken before (headIn)
-            %we increase the number of trials every time beam is re-broken
-            %currTrials=currTrials+1;
+            %lickcount is reinit, and the olfact. is opened
             headIn=true;
             firstBeam=false;
             lickCounter=0;
@@ -327,30 +351,33 @@ while (true & closeTraining)
             valveLock = 0;
             falseTrial=false;
             if(~valveopen)
-                % if we are in levels 7-8 we open the desired valve
-                % and final valve (with specified delay)
                 %notice that of the valve is alreday open we dont get in here
                 valveCount=valveCount+1;
                 waterWasGiven=false;
                 if (valveCount>lev.numberofTrials)
+                    %% this is for the end of the training session, everything will be closed
                     closeEvs(h2);
                     if(notWrriten)
                         LogResultsWhenPausing(lev,valveCount,valveNumber,lickCounter,waterWasGiven,handles,falseTrial);
-                    valveLock=0;
-                    falseTrial=false;
+                        valveLock=0;
+                        falseTrial=false;
                     end
                     obj=lev
                     obj.mouseName='fuckyourmama2'
                     save(str,'obj');
                     return;
                 end
+                %update gui
                 set(handles.Trial, 'String', num2str(valveCount));
+                % updatoing which valve will be opened
                 valveNumber=randomValves(valveCount);
+                
                 if(valveCount+1<=numel(randomValves))
                     nextValve=randomValves(valveCount+1);
                 else
-                    nextValve=999;
+                    nextValve=999;%last trial
                 end
+                %gui
                 set(handles.Valve, 'String', num2str(valveNumber));
                 set(handles.nextValve, 'String', num2str(nextValve));
                 if(intersect(valveNumber,lev.rewardValve)==valveNumber)
@@ -363,12 +390,14 @@ while (true & closeTraining)
                 else
                     set(handles.nextRewarded, 'String', 'Choice B');
                 end
+                
+                % the moment we all waited for , opening olf.
                 olfactometerSetOder(h2, slave, logger, valveNumber, vopen);
                 
                 openingTimer=tic;
                 
                 while(delay-toc(openingTimer) > 0.01)
-                    
+                    %busy wait loop till ododr reaches FV
                 end
                 olfactometerSetFinalValve(h2, slave, logger, vopen);
                 valveTimer=tic;
@@ -378,46 +407,34 @@ while (true & closeTraining)
         end
     elseif (data(1)==0 && ~firstBeam)
         %if beam is unbroken (==0) AND beam was broken before  (first beam)
-        %if we didnt give water we count it as a miss
         headIn=false;
         %we want to signal that a trial has been re-initiated
         trialInit=true;
-        %   lickCounter=0;
-        %we save the data from this trial to the vector
-        % and add it to the data results
     end
     
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
     if ( (data(3)==1 && valveLock==2)  || (data(2)==1 && valveLock==3))
+        %% the logic here is: if the valveLock is on one valve, and mouse licked the other
+        %% then trial is falsified
         falseTrial=true;
     end
     
     
-    
-    
-    
-    
-    %%alternative choice -- second valve
+    %% alternative choice -- second valve
     
     if (data(3)==1 && ~wateropen && disconnB && trialInit && ...
             toc(valveTimer)<lev.interTrialInterval & ~waterWasGiven & toc(valveTimer)>finalValveLickDelay & valveLock~=2 &...
             ~falseTrial)
         %here we check if lick was preformed AND THAT:
+        
         %~wateropen- water ISNT open
-        %disconn -the mouse disconnected the tongue completly
-        %so as not to count continous engagements as one lick
+        
+        % disconnB - the mouse disconnected the tongue from B-lickometer
+        % trialInit - that a new trial started 
+        % toc(valveTimer) etc. - that intertrial didnt pass. 
+        % waterWasGiven-water wasnt given yet
+        % valveTimer- checking time window didnt pass 
+        % valveLock isnt set on the alternative 
+        % trial wasnt falsified 
         %trial has been reinitialized after time window passed
         %see below
         disconnB=false;
@@ -430,27 +447,28 @@ while (true & closeTraining)
             wasntLogged=true;
             firsLick=false;
             valveLock=3
-          
+            
         end
         if toc(lickTimer)<=lev.timeWindow
             lickCounter=lickCounter+1
         end
         set(handles.Licks, 'String', num2str(lickCounter));
         guidata(hObject, handles);
-        lev.lickThresh
         if (lickCounter>=lev.lickThresh & intersect(valveNumber,lev.noRewardValve)==valveNumber & ~waterWasGiven)
-            %%this is the stage wqe were all waitiing for
-            %we check wether:
-            %   A.the mouse did enough licks
-            %   B. the licks were all done in the specified time window
+            %% this is the stage where we give water if all conditions were
+            %% met 
+            % we check wether:
+            %  the mouse did enough licks
+            %  the licks were all done in the specified time window
+            %  this is the correct valve 
+            
             %giving water
             wateropen=true;
-            
-            
             display('water was given')
             time=fix(clock);
+            
             %we open the water for the specified giving period
-            x.outputSingleScan([0 1]);
+            x.outputSingleScan([0 1]); %we open the B tap
             %pause(lev.waterGivePeriod);
             waterTimer=tic;
             while(toc(waterTimer)<lev.waterGivePeriod && toc(valveTimer)<loggingThresh )
@@ -472,19 +490,15 @@ while (true & closeTraining)
             
         end
     elseif (data(3)==0)
+        % mouse discon. tongue from b
         disconnB=true;
     end
     %alternative choice second valve
     
     if (data(2)==1 && ~wateropen && disconnA && trialInit && ...
             toc(valveTimer)<lev.interTrialInterval & ~waterWasGiven & toc(valveTimer)>finalValveLickDelay & valveLock~=3 &...
-        ~falseTrial)
-        %here we check if lick was preformed AND THAT:
-        %~wateropen- water ISNT open
-        %disconn -the mouse disconnected the tongue completly
-        %so as not to count continous engagements as one lick
-        %trial has been reinitialized after time window passed
-        %see below
+            ~falseTrial)
+        %see docs for B 
         disconnA=false;
         
         if firsLick
@@ -502,14 +516,8 @@ while (true & closeTraining)
         set(handles.Licks, 'String', num2str(lickCounter));
         guidata(hObject, handles);
         if (lickCounter>=lev.lickThresh & intersect(valveNumber,lev.rewardValve)==valveNumber & ~waterWasGiven)
-            %%this is the stage wqe were all waitiing for
-            %we check wether:
-            %   A.the mouse did enough licks
-            %   B. the licks were all done in the specified time window
-            %giving water
+            %%see docs for B 
             wateropen=true;
-            
-            
             display('water was given')
             time=fix(clock);
             %we open the water for the specified giving period
@@ -520,23 +528,19 @@ while (true & closeTraining)
                 [samplingTimer dataResults] =LogDataWhenPausing(x,samplingTimer,dataResults,valveTimer);
             end
             x.outputSingleScan([0 0]);
-            
             waterWasGiven=true;
             wateropen=false;
             %at the end of water giving we have to make an inter trial
             %interval, is done with the specific function
             insideInterTrial=true;
-            %lickCounter=0;
             firsLick=true;
-            
             trialInit=false;
-            %dataResults=[]
             insideInterTrial=false;
-            
         end
     elseif (data(2)==0)
         disconnA=true;
     end
+    
     if (valveopen)
         %%here we want to close the olfactometer after 1sec
         
@@ -545,30 +549,19 @@ while (true & closeTraining)
             olfactometerSetOder(h2, slave, logger, valveNumber, vclose);
             olfactometerSetFinalValve(h2, slave, logger, vclose);
             valveopen=false;
-            
-            %we pause for two seconds after closing
-            %  pause(2)
         end
     end
-    %if(lickTimer~=0)
-    %         %we want to reinit the trial in case the time window passed
-    %         % we also want to zero the lickcounter
-    %         %also make sure the firstlick is set to true
-    %    if (toc(lickTimer) >lev.timeWindow )
-    %             [waterWasGiven,firsLick,lickCounter,trialInit ] =...
-    %                 LogResultsWhenPausing(lev,valveCount,valveNumber,lickCounter,waterWasGiven,handles);
-    %                 wasntLogged=false;
-    
-    %    end
-    %end
     guidata(hObject, handles);
 end
+
+%%we exited the loop, either because of end of trials or 
 lev.currentValve=valveCount
 obj=lev
-obj.mouseName='fuckyourmama'
+obj.mouseName='example1'
 save(str,'obj');
 helpdlg('Thanks for Your participation!')
 helpdlg(sprintf('mouse reached trial number: %d out of %d trials',valveCount,lev.numberofTrials));
+closeOlfactometer
 close all
 
 
@@ -597,11 +590,6 @@ while (toc(loopTic)<interTrialInterval)
         end
         dlmwrite(lev.timePath,dataResults(2,:),'-append');
     end
-    %     if (toc(lickTimer) >lev.timeWindow && notWritten && tmp2)
-    %         [waterWasGiven,firsLick,lickCounter,trialInit ] =...
-    %             LogResultsWhenPausing(lev,valveCount,valveNumber,lev.lickThresh,true,handles);
-    %         tmp2=false;
-    %     end
 end
 
 function [samplingTimer dataResults] =LogDataWhenPausing(x,samplingTimer,dataResults,valveTimer)
@@ -611,34 +599,60 @@ if(toc(samplingTimer)>=0.01)
     dataResults=[dataResults dataVec];
     samplingTimer=tic;
 end
-
+%this logs the trial info (valve, and mouse reaction classification)
+% ask lena for details about criteria 
 function[waterWasGiven,firsLick...
     lickCounter,trialInit ] =...
     LogResultsWhenPausing(lev,valveCount,valveNumber,lickCounter,waterWasGiven,handles,falseTrial)
-
+global hitA
+global hitB
+global FAA
+global FAB
+global miss
+global failedTrials
 display('lickcounter zerored')
 if (waterWasGiven)
     if(intersect(valveNumber,lev.rewardValve)==valveNumber)
         set(handles.Result, 'String', 'HIT CHOICE A');
+        hitA=hitA+1;
         dlmwrite(lev.trialPath,[valveCount,valveNumber,1,0,0,0],'-append');
     elseif (intersect(valveNumber,lev.noRewardValve)==valveNumber)
         set(handles.Result, 'String', 'HIT CHOICE B');
+        hitB=hitB+1;
         dlmwrite(lev.trialPath,[valveCount,valveNumber,0,0,1,0],'-append');
     end
 else
     if (falseTrial)
+        failedTrials=failedTrials+1;
+        
         set(handles.Result, 'String', 'FAILED TRIAL');
+        
+        
+        dlmwrite(lev.trialPath,[valveCount,valveNumber,0,0,0,0,1],'-append');
+        pause(lev.timeOut)
     elseif(intersect(valveNumber,lev.rewardValve)==valveNumber & lickCounter>0)
         dlmwrite(lev.trialPath,[valveCount,valveNumber,0,1,0,0],'-append');
         set(handles.Result, 'String', 'FALSE ALARM CHOICE A');
+        
+        FAA=FAA+1;
+        pause(lev.timeOut)
     elseif (intersect(valveNumber,lev.noRewardValve)==valveNumber & lickCounter>0)
         set(handles.Result, 'String', 'FALSE ALARM CHOICE B ');
+        FAB=FAB+1;
         dlmwrite(lev.trialPath,[valveCount,valveNumber,0,0,0,1],'-append');
+        pause(lev.timeOut)
     elseif (lickCounter==0)
         set(handles.Result, 'String', 'MISS ');
+        miss=miss+1;
         dlmwrite(lev.trialPath,[valveCount,valveNumber,0,0,0,0],'-append');
     end
 end
+display(sprintf('hit A: %d',hitA))
+display(sprintf('hit B: %d',hitB))
+display(sprintf('False Alarm A: %d',FAA))
+display(sprintf('False Alarm B: %d',FAB))
+display(sprintf('failed trials: %d',failedTrials))
+display(sprintf('misses: %d',miss))
 if(waterWasGiven)
     dlmwrite(lev.waterPath,[valveCount 1],'-append');
 else
@@ -673,12 +687,3 @@ global x
 x.outputSingleScan(1);
 pause(0.3)
 x.outputSingleScan(0);
-
-
-% --- Executes when selected cell(s) is changed in uitable1.
-function uitable1_CellSelectionCallback(hObject, eventdata, handles)
-% hObject    handle to uitable1 (see GCBO)
-% eventdata  structure with the following fields (see MATLAB.UI.CONTROL.TABLE)
-%	Indices: row and column indices of the cell(s) currently selecteds
-% handles    structure with handles and user data (see GUIDATA)
-set(handles.uitable1, 'Data', zeros(2,20));

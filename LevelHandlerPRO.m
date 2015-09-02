@@ -1,9 +1,9 @@
 function [passed dataResults] = LevelHandlerPRO(dev,lev)
 randomize=false;
-A=2
+A=4
 B=3
 
-valves=[3 3 3 2];
+valves=[4 4 4 3 ];
 wateropen = false;
 x=dev;
 currTrials=0;
@@ -102,7 +102,7 @@ while (true)
             % and final valve (with specified delay)
             %notice that of the valve is alreday open we dont get in here
             display('before')
-            valveNumber=newValve
+            valveNumber=newValve;
             olfactometerSetOder(h2, slave, logger, valveNumber, vopen);
             activePause(delay, logger, h2, slave);
             olfactometerSetFinalValve(h2, slave, logger, vopen);
@@ -212,7 +212,7 @@ while (true)
                     successCountB=successCountB+1;
                 end
                 if(successCount>=lev.successesNeeded)
-                    noWater=true;
+                    noWater=true
                 end
                 lickCounter=0;
                 waterWasGiven=true;
